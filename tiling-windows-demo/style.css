@@ -1,0 +1,63 @@
+/* src/style.css */
+@import "tailwindcss";
+
+@theme {
+    /* background colors */
+    --color-bg-primary: #36393b;
+    --color-bg-secondary: #5c5c5c;
+    --color-bg-accent: #e3e3ca;
+
+    /* text colors */
+    --color-text-dark: #292929;
+    --color-text-light: #e3e3ca;
+    --color-text-accent: #6366bb;
+
+    /* outline colors */
+    --color-outline-primary: #36393b;
+    --color-outline-secondary: #5c5c5c;
+    --color-outline-accent: #7f81c7;
+
+    /* status colors */
+    --color-status-success: #7cb36b;
+    --color-status-warning: #ffc107;
+    --color-status-error: #d73833;
+}
+
+.button {
+    @apply p-1
+	bg-transparent 
+	opacity-80 
+	rounded-lg 
+	hover:rounded-md
+	hover:scale-105
+	hover:opacity-100
+	ease-in-out
+	duration-75
+	cursor-pointer;
+}
+
+.title {
+    @apply w-4/5 
+	mx-auto
+	text-center
+	text-3xl
+  border-text-light
+	border-b-2
+	select-none;
+}
+
+.paragraph {
+    @apply w-4/5  
+	mx-auto 
+	overflow-auto
+	text-wrap
+	my-2;
+}
+
+.clickable {
+    @apply active:scale-95 
+	active:opacity-50
+	group-active:scale-95
+	group-active:opacity-80
+	hover:opacity-75;
+}
