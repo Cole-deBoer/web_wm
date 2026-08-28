@@ -51,7 +51,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - if: steps.filter.outputs.changed == 'true'
-        run: pnpm --filter tiling-windows-demo run build -- --base=/${{ github.event.repository.name }}/
+        run: pnpm --filter tiling-windows-demo run build
+        env:
+          DEMO_BASE_PATH: /${{ github.event.repository.name }}/
 
       - if: steps.filter.outputs.changed == 'true'
         uses: actions/configure-pages@v5
