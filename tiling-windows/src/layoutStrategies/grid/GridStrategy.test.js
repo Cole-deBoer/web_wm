@@ -109,3 +109,26 @@ describe("GridStrategy.calculateLayout", () => {
         });
     });
 });
+
+describe("GridStrategy resize opt-out", () => {
+    it("never reports resize handles, regardless of window count", () => {
+        const strategy = new GridStrategy();
+        strategy.windows.push(fakeWindow(), fakeWindow(), fakeWindow());
+
+        expect(
+            strategy.getResizeHandles({
+                position: { x: 0, y: 0 },
+                size: { width: 200, height: 100 },
+            }),
+        ).toEqual([]);
+    });
+
+    it("never accepts a resize, regardless of input", () => {
+        const strategy = new GridStrategy();
+        strategy.windows.push(fakeWindow(), fakeWindow());
+
+        expect(strategy.resizeHandle({ firstId: 1, secondId: 2 }, 0.7)).toBe(
+            false,
+        );
+    });
+});

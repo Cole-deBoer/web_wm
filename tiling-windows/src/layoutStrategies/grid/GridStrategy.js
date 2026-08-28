@@ -56,4 +56,23 @@ export class GridStrategy extends OrderedListStrategy {
             }
         });
     }
+
+    /**
+     * Grid cells are fixed-size by design (see class doc above) -
+     * resizing is explicitly unsupported for this strategy.
+     * @param {{position: {x: number, y: number}, size: {width: number, height: number}}} bounds - unused
+     * @returns {Array<never>}
+     */
+    getResizeHandles(bounds) {
+        return [];
+    }
+
+    /**
+     * @param {unknown} handle - unused
+     * @param {number} ratio - unused
+     * @returns {boolean} always false
+     */
+    resizeHandle(handle, ratio) {
+        return false;
+    }
 }
