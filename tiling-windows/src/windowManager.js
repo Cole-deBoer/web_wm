@@ -118,10 +118,13 @@ export class WindowManager {
         if (this.unbindRedrawWindows) this.unbindRedrawWindows();
     }
 
-    redrawWindows() {
+    /**
+     * @returns {{position: {x: number, y: number}, size: {width: number, height: number}}}
+     */
+    computeLayoutBounds() {
         const workspaceSize = this.renderer.getWorkspaceSize(this.workspaceRef);
 
-        this.strategy.calculateLayout({
+        return {
             position: {
                 x: this.windowMargin.horizontal,
                 y: this.windowMargin.vertical,
@@ -130,7 +133,33 @@ export class WindowManager {
                 width: workspaceSize.width - this.windowMargin.horizontal * 2,
                 height: workspaceSize.height - this.windowMargin.vertical * 2,
             },
-        });
+        };
+    }
+
+    redrawWindows() {
+        this.strategy.calculateLayout(this.computeLayoutBounds());
+    }
+
+    /**
+     * @returns {Array<{handle: unknown, bounds: {position: {x: number, y: number}, size: {width: number, height: number}}, splitDirection: import("./splitDirection.js").SplitDirectionValue}>}
+     */
+    getResizeHandles() {
+        return this.strategy.getResizeHandles(this.computeLayoutBounds());
+    }
+
+    /**
+     * Resizes the two regions adjacent to `handle`. No begin/end gesture
+     * state is needed here (unlike beginDrag/endDrag) - resizing never
+     * restructures the tree/list, it only mutates a numeric ratio/weight,
+     * so each call is a complete, stateless operation.
+     * @param {unknown} handle - a value previously returned by getResizeHandles
+     * @param {number} ratio
+     * @returns {boolean} whether a redraw happened
+     */
+    resizeHandle(handle, ratio) {
+        const resized = this.strategy.resizeHandle(handle, ratio);
+        if (resized) this.redrawWindows();
+        return resized;
     }
 
     /**
