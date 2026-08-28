@@ -23,19 +23,6 @@
     --color-status-error: #d73833;
 }
 
-.button {
-    @apply p-1
-	bg-transparent 
-	opacity-80 
-	rounded-lg 
-	hover:rounded-md
-	hover:scale-105
-	hover:opacity-100
-	ease-in-out
-	duration-75
-	cursor-pointer;
-}
-
 .title {
     @apply w-4/5 
 	mx-auto
@@ -55,9 +42,61 @@
 }
 
 .clickable {
-    @apply active:scale-95 
+    @apply active:scale-95
 	active:opacity-50
 	group-active:scale-95
 	group-active:opacity-80
 	hover:opacity-75;
+}
+
+.button-primary {
+    @apply px-5 py-2.5
+	rounded-lg
+	bg-text-accent
+	text-text-light
+	text-sm
+	font-semibold
+	text-center
+	no-underline
+	opacity-90
+	hover:opacity-100
+	hover:scale-105
+	ease-in-out
+	duration-75
+	cursor-pointer;
+}
+
+.button-secondary {
+    @apply px-5 py-2.5
+	rounded-lg
+	border
+	border-outline-secondary
+	text-text-light
+	text-sm
+	font-semibold
+	text-center
+	no-underline
+	opacity-80
+	hover:opacity-100
+	hover:scale-105
+	ease-in-out
+	duration-75
+	cursor-pointer;
+}
+
+.feature-card {
+    @apply flex flex-col gap-2
+	p-5
+	rounded-xl
+	border
+	border-outline-secondary
+	bg-bg-secondary/20;
+}
+
+.feature-title {
+    @apply text-base font-semibold text-text-light;
+}
+
+.feature-body {
+    @apply text-sm text-text-light/70;
 }

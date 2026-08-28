@@ -8,6 +8,8 @@ import {
 } from "./dashboardPanels.js";
 
 export const layout = () => {
+    document.title = "tiling-windows - layout demo";
+
     const workspaceElement = document.getElementById("layout");
 
     // Swap the trailing `new BspStrategy()` for `new ColumnsStrategy()` or

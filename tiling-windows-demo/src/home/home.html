@@ -1,0 +1,54 @@
+<div class="min-h-screen flex flex-col bg-bg-primary text-text-light">
+    <header
+        class="w-4/5 mx-auto pt-20 pb-12 flex flex-col items-center text-center gap-4"
+    >
+        <span
+            class="text-xs font-semibold uppercase tracking-widest text-text-accent"
+            >tiling-windows</span
+        >
+        <h1 class="text-4xl sm:text-5xl font-semibold max-w-3xl">
+            A tiling window manager for the DOM
+        </h1>
+        <p class="paragraph max-w-2xl text-text-light/70">
+            Think Hyprland, but for the web. The layout engine owns the tiling
+            logic - BSP, columns, and grid - and never touches a real element; a
+            renderer adapts that to any surface.
+            <code>tiling-windows-dom</code> is the reference
+            <code>HTMLElement</code> renderer powering the demo below.
+        </p>
+        <div class="flex flex-wrap items-center justify-center gap-3 mt-2">
+            <a href="#/demo" class="button-primary clickable">Open the demo</a>
+            <a
+                href="https://github.com/Cole-deBoer/web_wm"
+                target="_blank"
+                rel="noreferrer"
+                class="button-secondary clickable"
+                >View on GitHub</a
+            >
+        </div>
+    </header>
+
+    <section class="w-4/5 max-w-4xl mx-auto grid gap-4 sm:grid-cols-3 pb-20">
+        <div class="feature-card">
+            <h2 class="feature-title">Multiple strategies</h2>
+            <p class="feature-body">
+                Swap between BSP, columns, and grid layout strategies without
+                touching your app code.
+            </p>
+        </div>
+        <div class="feature-card">
+            <h2 class="feature-title">Drag to rearrange</h2>
+            <p class="feature-body">
+                Grab a window and drop it against an edge to split the
+                workspace, or right-click to close it.
+            </p>
+        </div>
+        <div class="feature-card">
+            <h2 class="feature-title">Renderer-agnostic core</h2>
+            <p class="feature-body">
+                The layout engine never touches a real element - a Renderer
+                contract adapts it to DOM, canvas, React, or anything else.
+            </p>
+        </div>
+    </section>
+</div>
