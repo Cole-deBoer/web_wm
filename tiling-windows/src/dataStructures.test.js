@@ -79,6 +79,17 @@ describe("Window", () => {
         expect(renderer.setBounds).not.toHaveBeenCalled();
     });
 
+    it("contributes no resize handles - a leaf owns no divider", () => {
+        const window = new Window(null, 1, {}, MARGIN, makeRenderer());
+
+        expect(
+            window.collectResizeHandles({
+                position: { x: 0, y: 0 },
+                size: { width: 100, height: 100 },
+            }),
+        ).toEqual([]);
+    });
+
     it("delegates getBounds/remove to the renderer", () => {
         const ref = {};
         const renderer = makeRenderer();
