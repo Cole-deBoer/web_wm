@@ -117,7 +117,7 @@ export class Container extends Structure {
 
     /**
      * @param {{position: {x: number, y: number}, size: {width: number, height: number}}} bounds - The bounds of the structure
-     * @returns {Array<{handle: Container, bounds: {position: {x: number, y: number}, size: {width: number, height: number}}, splitDirection: import("../../splitDirection.js").SplitDirectionValue}>}
+     * @returns {Array<{handle: unknown, bounds: {position: {x: number, y: number}, size: {width: number, height: number}}, splitDirection: import("../../splitDirection.js").SplitDirectionValue}>}
      */
     collectResizeHandles(bounds) {
         const { firstChildBounds, secondChildBounds } =
