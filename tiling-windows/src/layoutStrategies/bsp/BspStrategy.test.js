@@ -313,7 +313,10 @@ describe("BspStrategy.insertWindow", () => {
 });
 
 describe("BspStrategy.getResizeHandles", () => {
-    const bounds = { position: { x: 0, y: 0 }, size: { width: 100, height: 100 } };
+    const bounds = {
+        position: { x: 0, y: 0 },
+        size: { width: 100, height: 100 },
+    };
 
     it("returns no handles when there is no root", () => {
         const strategy = new BspStrategy();

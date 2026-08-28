@@ -251,7 +251,9 @@ describe("WindowManager.getResizeHandles", () => {
 
     it("returns whatever the strategy reports", () => {
         const strategy = new FakeStrategy();
-        const handles = [{ handle: {}, bounds: {}, splitDirection: "Vertical" }];
+        const handles = [
+            { handle: {}, bounds: {}, splitDirection: "Vertical" },
+        ];
         strategy.getResizeHandles = vi.fn(() => handles);
         const wm = new WindowManager({}, fakeRenderer(), strategy);
 

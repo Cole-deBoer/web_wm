@@ -228,10 +228,7 @@ describe("OrderedListStrategy.resizeHandle", () => {
         const strategy = new OrderedListStrategy();
         [1, 2, 3].forEach((id) => strategy.addWindow(createTestWindow(id)));
 
-        const result = strategy.resizeHandle(
-            { firstId: 1, secondId: 2 },
-            0.25,
-        );
+        const result = strategy.resizeHandle({ firstId: 1, secondId: 2 }, 0.25);
 
         expect(result).toBe(true);
         expect(strategy.getWeight(1)).toBe(0.5);

@@ -121,9 +121,7 @@ export class OrderedListStrategy extends LayoutStrategy {
      */
     resizeHandle(handle, ratio) {
         const { firstId, secondId } =
-            /** @type {{firstId?: number, secondId?: number}} */ (
-                handle ?? {}
-            );
+            /** @type {{firstId?: number, secondId?: number}} */ (handle ?? {});
         const firstIndex = this.indexOf(/** @type {number} */ (firstId));
         const secondIndex = this.indexOf(/** @type {number} */ (secondId));
 
