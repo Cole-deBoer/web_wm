@@ -4,6 +4,7 @@ import { Container } from "./Container.js";
 import { Window } from "../../dataStructures.js";
 import { SplitDirection } from "../../splitDirection.js";
 import { createTestWindow, rect } from "../../test-utils.js";
+import { MIN_RESIZE_RATIO } from "../../resize.js";
 
 describe("BspStrategy.addWindow", () => {
     it("makes the first window the root", () => {
@@ -308,5 +309,94 @@ describe("BspStrategy.insertWindow", () => {
 
         expect(strategy.windowCount).toBe(3);
         expect(strategy.findStructure(strategy.root, 3)).toBe(w3);
+    });
+});
+
+describe("BspStrategy.getResizeHandles", () => {
+    const bounds = { position: { x: 0, y: 0 }, size: { width: 100, height: 100 } };
+
+    it("returns no handles when there is no root", () => {
+        const strategy = new BspStrategy();
+        expect(strategy.getResizeHandles(bounds)).toEqual([]);
+    });
+
+    it("returns no handles for a single-window tree", () => {
+        const strategy = new BspStrategy();
+        strategy.addWindow(createTestWindow(1), SplitDirection.Vertical);
+
+        expect(strategy.getResizeHandles(bounds)).toEqual([]);
+    });
+
+    it("returns one handle for a two-window tree, identified by the root Container", () => {
+        const strategy = new BspStrategy();
+        strategy.addWindow(createTestWindow(1), SplitDirection.Vertical);
+        strategy.addWindow(createTestWindow(2), SplitDirection.Vertical);
+
+        const handles = strategy.getResizeHandles(bounds);
+
+        expect(handles).toHaveLength(1);
+        expect(handles[0].handle).toBe(strategy.root);
+    });
+
+    it("returns one handle per Container for a nested tree", () => {
+        const strategy = new BspStrategy();
+        strategy.addWindow(createTestWindow(1), SplitDirection.Vertical);
+        strategy.addWindow(createTestWindow(2), SplitDirection.Vertical);
+        strategy.addWindow(createTestWindow(3), SplitDirection.Horizontal);
+
+        const handles = strategy.getResizeHandles(bounds);
+
+        expect(handles).toHaveLength(2);
+        expect(handles.map((h) => h.handle)).toContain(strategy.root);
+    });
+});
+
+describe("BspStrategy.resizeHandle", () => {
+    it("clamps and sets the ratio on the happy path, returning true", () => {
+        const strategy = new BspStrategy();
+        strategy.addWindow(createTestWindow(1), SplitDirection.Vertical);
+        strategy.addWindow(createTestWindow(2), SplitDirection.Vertical);
+        const container = strategy.root;
+
+        const result = strategy.resizeHandle(container, 0.7);
+
+        expect(result).toBe(true);
+        expect(container.ratio).toBe(0.7);
+    });
+
+    it("clamps ratio to the [MIN_RESIZE_RATIO, 1 - MIN_RESIZE_RATIO] range", () => {
+        const strategy = new BspStrategy();
+        strategy.addWindow(createTestWindow(1), SplitDirection.Vertical);
+        strategy.addWindow(createTestWindow(2), SplitDirection.Vertical);
+        const container = strategy.root;
+
+        strategy.resizeHandle(container, 0);
+        expect(container.ratio).toBe(MIN_RESIZE_RATIO);
+
+        strategy.resizeHandle(container, 1);
+        expect(container.ratio).toBe(1 - MIN_RESIZE_RATIO);
+
+        strategy.resizeHandle(container, NaN);
+        expect(container.ratio).toBe(MIN_RESIZE_RATIO);
+    });
+
+    it("returns false and does not mutate for a non-Container handle", () => {
+        const strategy = new BspStrategy();
+        strategy.addWindow(createTestWindow(1), SplitDirection.Vertical);
+        strategy.addWindow(createTestWindow(2), SplitDirection.Vertical);
+
+        expect(strategy.resizeHandle({ not: "a container" }, 0.7)).toBe(false);
+        expect(strategy.resizeHandle(null, 0.7)).toBe(false);
+    });
+
+    it("returns false for a Container no longer reachable from root", () => {
+        const strategy = new BspStrategy();
+        strategy.addWindow(createTestWindow(1), SplitDirection.Vertical);
+        strategy.addWindow(createTestWindow(2), SplitDirection.Vertical);
+        const detached = strategy.root;
+        strategy.removeWindow(2, true); // root becomes w1, detached Container is orphaned
+
+        expect(strategy.resizeHandle(detached, 0.7)).toBe(false);
+        expect(detached.ratio).toBe(0.5);
     });
 });
