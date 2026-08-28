@@ -1,4 +1,6 @@
 import { LayoutStrategy } from "./LayoutStrategy.js";
+import { SplitDirection } from "../splitDirection.js";
+import { clampResizeRatio, RESIZE_HANDLE_THICKNESS } from "../resize.js";
 
 /**
  * Shared base for strategies that arrange windows as a flat ordered
@@ -14,6 +16,16 @@ export class OrderedListStrategy extends LayoutStrategy {
          * @type {import("../dataStructures.js").Window[]}
          */
         this.windows = [];
+        /**
+         * Per-window weight (relative share of the row). Missing entries
+         * default to 1 via getWeight, so a freshly-added window (or every
+         * window before any resize ever happens) reproduces even division
+         * exactly. Keyed by windowId (not index) so a window's custom
+         * weight survives being reordered by drag-and-drop elsewhere in
+         * the list.
+         * @type {Map<number, number>}
+         */
+        this.weights = new Map();
     }
 
     get windowCount() {
@@ -26,6 +38,111 @@ export class OrderedListStrategy extends LayoutStrategy {
      */
     indexOf(windowId) {
         return this.windows.findIndex((window) => window.id === windowId);
+    }
+
+    /**
+     * @param {number} windowId
+     * @returns {number}
+     */
+    getWeight(windowId) {
+        return this.weights.get(windowId) ?? 1;
+    }
+
+    /**
+     * Divides `bounds` into one bounds rect per window, left to right,
+     * proportional to each window's weight. Pure geometry - shared by
+     * calculateLayout (ColumnsStrategy) and getResizeHandles below, so
+     * there is exactly one place this math is written.
+     * @param {{position: {x: number, y: number}, size: {width: number, height: number}}} bounds - The bounds of the structure
+     * @returns {Array<{position: {x: number, y: number}, size: {width: number, height: number}}>}
+     */
+    computeColumnBounds(bounds) {
+        const totalWeight =
+            this.windows.reduce(
+                (sum, window) => sum + this.getWeight(window.id),
+                0,
+            ) || this.windows.length;
+
+        let x = bounds.position.x;
+        return this.windows.map((window) => {
+            const width = totalWeight
+                ? (this.getWeight(window.id) / totalWeight) * bounds.size.width
+                : 0;
+            const columnBounds = {
+                position: { x, y: bounds.position.y },
+                size: { width, height: bounds.size.height },
+            };
+            x += width;
+            return columnBounds;
+        });
+    }
+
+    /**
+     * Default assumes a single-axis, left-to-right arrangement (as used
+     * by ColumnsStrategy). Subclasses with different geometry (e.g.
+     * GridStrategy) must override this - and resizeHandle - to disable
+     * resizing rather than reporting misleading handles.
+     * @param {{position: {x: number, y: number}, size: {width: number, height: number}}} bounds - The bounds of the structure
+     * @returns {Array<{handle: {firstId: number, secondId: number}, bounds: {position: {x: number, y: number}, size: {width: number, height: number}}, splitDirection: import("../splitDirection.js").SplitDirectionValue}>}
+     */
+    getResizeHandles(bounds) {
+        if (this.windows.length < 2) return [];
+
+        const columnBounds = this.computeColumnBounds(bounds);
+        const handles = [];
+        for (let i = 0; i < this.windows.length - 1; i++) {
+            const boundaryX =
+                columnBounds[i].position.x + columnBounds[i].size.width;
+            handles.push({
+                handle: {
+                    firstId: this.windows[i].id,
+                    secondId: this.windows[i + 1].id,
+                },
+                bounds: {
+                    position: {
+                        x: boundaryX - RESIZE_HANDLE_THICKNESS / 2,
+                        y: bounds.position.y,
+                    },
+                    size: {
+                        width: RESIZE_HANDLE_THICKNESS,
+                        height: bounds.size.height,
+                    },
+                },
+                splitDirection: SplitDirection.Vertical,
+            });
+        }
+        return handles;
+    }
+
+    /**
+     * @param {unknown} handle - expected to be {firstId, secondId} from getResizeHandles
+     * @param {number} ratio
+     * @returns {boolean} whether the caller should redraw
+     */
+    resizeHandle(handle, ratio) {
+        const { firstId, secondId } =
+            /** @type {{firstId?: number, secondId?: number}} */ (handle ?? {});
+        const firstIndex = this.indexOf(/** @type {number} */ (firstId));
+        const secondIndex = this.indexOf(/** @type {number} */ (secondId));
+
+        if (firstIndex === -1 || secondIndex === -1) return false;
+        if (secondIndex !== firstIndex + 1) return false;
+
+        const totalWeight =
+            this.getWeight(/** @type {number} */ (firstId)) +
+            this.getWeight(/** @type {number} */ (secondId));
+        if (totalWeight <= 0) return false;
+
+        const clampedRatio = clampResizeRatio(ratio);
+        this.weights.set(
+            /** @type {number} */ (firstId),
+            totalWeight * clampedRatio,
+        );
+        this.weights.set(
+            /** @type {number} */ (secondId),
+            totalWeight * (1 - clampedRatio),
+        );
+        return true;
     }
 
     /**
@@ -55,7 +172,10 @@ export class OrderedListStrategy extends LayoutStrategy {
 
         const [window] = this.windows.splice(index, 1);
 
-        if (removeFromDOM) window.remove();
+        if (removeFromDOM) {
+            window.remove();
+            this.weights.delete(windowId);
+        }
 
         if (removeFromDOM && this.getActiveWindowId() === windowId) {
             const fallback = this.windows[index] ?? this.windows[index - 1];

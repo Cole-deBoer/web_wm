@@ -14,6 +14,14 @@ export class Structure {
     calculateLayout(bounds) {
         throw new Error("Not implemented");
     }
+
+    /**
+     * @param {{position: {x: number, y: number}, size: {width: number, height: number}}} bounds - The bounds of the structure
+     * @returns {Array<{handle: unknown, bounds: {position: {x: number, y: number}, size: {width: number, height: number}}, splitDirection: import("./splitDirection.js").SplitDirectionValue}>}
+     */
+    collectResizeHandles(bounds) {
+        throw new Error("Not implemented");
+    }
 }
 
 export class Window extends Structure {
@@ -66,6 +74,15 @@ export class Window extends Structure {
                 height: bounds.size.height - this.margin.vertical * 2,
             },
         });
+    }
+
+    /**
+     * A leaf never owns a divider - it contributes no resize handles.
+     * @param {{position: {x: number, y: number}, size: {width: number, height: number}}} bounds - The bounds of the structure
+     * @returns {Array<never>}
+     */
+    collectResizeHandles(bounds) {
+        return [];
     }
 
     /**

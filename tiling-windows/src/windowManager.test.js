@@ -12,6 +12,8 @@ class FakeStrategy extends LayoutStrategy {
         this.calculateLayout = vi.fn();
         this.capturePosition = vi.fn((id) => ({ captured: id }));
         this.restoreWindow = vi.fn(() => true);
+        this.getResizeHandles = vi.fn(() => []);
+        this.resizeHandle = vi.fn(() => true);
     }
 
     get windowCount() {
@@ -225,6 +227,62 @@ describe("WindowManager.beginDrag / endDrag", () => {
         expect(
             strategy.insertWindow.mock.calls[0][3].capturedPosition,
         ).toBeNull();
+    });
+});
+
+describe("WindowManager.getResizeHandles", () => {
+    it("calls strategy.getResizeHandles with the same bounds redrawWindows uses", () => {
+        const margin = { horizontal: 10, vertical: 5 };
+        const strategy = new FakeStrategy();
+        const wm = new WindowManager(
+            {},
+            fakeRenderer({ width: 500, height: 300 }),
+            strategy,
+            margin,
+        );
+
+        wm.getResizeHandles();
+
+        expect(strategy.getResizeHandles).toHaveBeenCalledWith({
+            position: { x: 10, y: 5 },
+            size: { width: 480, height: 290 },
+        });
+    });
+
+    it("returns whatever the strategy reports", () => {
+        const strategy = new FakeStrategy();
+        const handles = [
+            { handle: {}, bounds: {}, splitDirection: "Vertical" },
+        ];
+        strategy.getResizeHandles = vi.fn(() => handles);
+        const wm = new WindowManager({}, fakeRenderer(), strategy);
+
+        expect(wm.getResizeHandles()).toBe(handles);
+    });
+});
+
+describe("WindowManager.resizeHandle", () => {
+    it("redraws and returns true when the strategy accepts the resize", () => {
+        const strategy = new FakeStrategy();
+        const wm = new WindowManager({}, fakeRenderer(), strategy);
+        const handle = {};
+
+        const result = wm.resizeHandle(handle, 0.6);
+
+        expect(result).toBe(true);
+        expect(strategy.resizeHandle).toHaveBeenCalledWith(handle, 0.6);
+        expect(strategy.calculateLayout).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not redraw and returns false when the strategy rejects the resize", () => {
+        const strategy = new FakeStrategy();
+        strategy.resizeHandle = vi.fn(() => false);
+        const wm = new WindowManager({}, fakeRenderer(), strategy);
+
+        const result = wm.resizeHandle({}, 0.6);
+
+        expect(result).toBe(false);
+        expect(strategy.calculateLayout).not.toHaveBeenCalled();
     });
 });
 

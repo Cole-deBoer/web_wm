@@ -3,6 +3,7 @@ import { Container } from "./Container.js";
 import { LayoutStrategy } from "../LayoutStrategy.js";
 import { SplitDirection } from "../../splitDirection.js";
 import { assert } from "../../assert.js";
+import { clampResizeRatio } from "../../resize.js";
 
 /**
  * @typedef {{isAbsoluteRoot: boolean, parent: Container | null} | null} CapturedPosition
@@ -340,5 +341,44 @@ export class BspStrategy extends LayoutStrategy {
         if (this.root) {
             this.root.calculateLayout(bounds);
         }
+    }
+
+    /**
+     * @param {import("../../dataStructures.js").Structure | null} structure - The structure to search in
+     * @param {Container} target - The container to search for
+     * @returns {boolean} whether target is reachable from structure
+     */
+    containsContainer(structure, target) {
+        if (structure == null) return false;
+        if (structure === target) return true;
+        if (structure instanceof Container) {
+            return (
+                this.containsContainer(structure.firstChild, target) ||
+                this.containsContainer(structure.secondChild, target)
+            );
+        }
+        return false;
+    }
+
+    /**
+     * @param {{position: {x: number, y: number}, size: {width: number, height: number}}} bounds - The bounds of the structure
+     * @returns {Array<{handle: unknown, bounds: {position: {x: number, y: number}, size: {width: number, height: number}}, splitDirection: import("../../splitDirection.js").SplitDirectionValue}>}
+     */
+    getResizeHandles(bounds) {
+        if (!this.root) return [];
+        return this.root.collectResizeHandles(bounds);
+    }
+
+    /**
+     * @param {unknown} handle - expected to be a Container returned by getResizeHandles
+     * @param {number} ratio
+     * @returns {boolean} whether the caller should redraw
+     */
+    resizeHandle(handle, ratio) {
+        if (!(handle instanceof Container)) return false;
+        if (!this.containsContainer(this.root, handle)) return false;
+
+        handle.ratio = clampResizeRatio(ratio);
+        return true;
     }
 }

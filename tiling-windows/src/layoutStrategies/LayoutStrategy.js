@@ -97,4 +97,25 @@ export class LayoutStrategy {
     calculateLayout(bounds) {
         throw new Error("Not implemented");
     }
+
+    /**
+     * @param {{position: {x: number, y: number}, size: {width: number, height: number}}} bounds - The bounds of the structure
+     * @returns {Array<{handle: unknown, bounds: {position: {x: number, y: number}, size: {width: number, height: number}}, splitDirection: import("../splitDirection.js").SplitDirectionValue}>}
+     */
+    getResizeHandles(bounds) {
+        throw new Error("Not implemented");
+    }
+
+    /**
+     * @param {unknown} handle - a value previously returned by getResizeHandles
+     * @param {number} ratio - 0-1 local fraction: how much of this handle's
+     * two adjacent regions should go to the "first" side (first child /
+     * earlier-in-list window). Computed by the consumer from wherever
+     * their pointer currently sits relative to the handle's reported
+     * bounds.
+     * @returns {boolean} whether the caller should redraw
+     */
+    resizeHandle(handle, ratio) {
+        throw new Error("Not implemented");
+    }
 }

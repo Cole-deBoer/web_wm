@@ -8,3 +8,4 @@ export { Container } from "./layoutStrategies/bsp/Container.js";
 export { ColumnsStrategy } from "./layoutStrategies/columns/ColumnsStrategy.js";
 export { GridStrategy } from "./layoutStrategies/grid/GridStrategy.js";
 export { SplitDirection } from "./splitDirection.js";
+export { MIN_RESIZE_RATIO, clampResizeRatio } from "./resize.js";

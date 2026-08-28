@@ -41,4 +41,29 @@ describe("ColumnsStrategy.calculateLayout", () => {
             size: { width: 100, height: 90 },
         });
     });
+
+    it("divides width proportionally to custom weights", () => {
+        const strategy = new ColumnsStrategy();
+        const w1 = fakeWindow();
+        w1.id = 1;
+        const w2 = fakeWindow();
+        w2.id = 2;
+        strategy.windows.push(w1, w2);
+        strategy.weights.set(1, 3);
+        strategy.weights.set(2, 1);
+
+        strategy.calculateLayout({
+            position: { x: 0, y: 0 },
+            size: { width: 400, height: 100 },
+        });
+
+        expect(w1.calculateLayout).toHaveBeenCalledWith({
+            position: { x: 0, y: 0 },
+            size: { width: 300, height: 100 },
+        });
+        expect(w2.calculateLayout).toHaveBeenCalledWith({
+            position: { x: 300, y: 0 },
+            size: { width: 100, height: 100 },
+        });
+    });
 });
