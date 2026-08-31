@@ -6,6 +6,7 @@ import {
     createStatusPanel,
     createMeterPanel,
 } from "./dashboardPanels.js";
+import { setupResizeHandles } from "./resizeHandles.js";
 
 export const layout = () => {
     document.title = "tiling-windows - layout demo";
@@ -30,6 +31,8 @@ export const layout = () => {
         const activeElement = windowElements.get(windowId);
         if (activeElement) activeElement.dataset.active = "true";
     });
+
+    setupResizeHandles(windowManager);
 
     createDashboardWindow(
         windowManager,
@@ -109,6 +112,7 @@ const createDashboardWindow = (
     element,
     splitDirection,
 ) => {
+    element.classList.add("window");
     windowManager.workspaceRef.appendChild(element);
     const window = windowManager.createWindow(element);
 
