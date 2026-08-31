@@ -46,6 +46,11 @@ export class WindowManager {
          */
         this.dragPositions = new Map();
 
+        /**
+         * @type {Set<() => void>}
+         */
+        this.redrawListeners = new Set();
+
         this.bindRedrawWindows();
     }
 
@@ -84,6 +89,18 @@ export class WindowManager {
      */
     onActiveWindowChange(callback) {
         return this.strategy.onActiveWindowChange(callback);
+    }
+
+    /**
+     * Fires after every redrawWindows() call (add/remove/drag/resize/native
+     * resize) - the supported way to know "the layout changed, re-sync your
+     * overlay" instead of wrapping redrawWindows() directly.
+     * @param {() => void} callback
+     * @returns {() => void} unsubscribe
+     */
+    onRedraw(callback) {
+        this.redrawListeners.add(callback);
+        return () => this.redrawListeners.delete(callback);
     }
 
     /**
@@ -138,10 +155,11 @@ export class WindowManager {
 
     redrawWindows() {
         this.strategy.calculateLayout(this.computeLayoutBounds());
+        for (const listener of this.redrawListeners) listener();
     }
 
     /**
-     * @returns {Array<{handle: unknown, bounds: {position: {x: number, y: number}, size: {width: number, height: number}}, splitDirection: import("./splitDirection.js").SplitDirectionValue}>}
+     * @returns {Array<{handle: unknown, bounds: {position: {x: number, y: number}, size: {width: number, height: number}}, splitDirection: import("./splitDirection.js").SplitDirectionValue, firstBounds: {position: {x: number, y: number}, size: {width: number, height: number}}, secondBounds: {position: {x: number, y: number}, size: {width: number, height: number}}}>}
      */
     getResizeHandles() {
         return this.strategy.getResizeHandles(this.computeLayoutBounds());

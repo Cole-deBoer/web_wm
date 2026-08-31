@@ -17,7 +17,7 @@ export class Structure {
 
     /**
      * @param {{position: {x: number, y: number}, size: {width: number, height: number}}} bounds - The bounds of the structure
-     * @returns {Array<{handle: unknown, bounds: {position: {x: number, y: number}, size: {width: number, height: number}}, splitDirection: import("./splitDirection.js").SplitDirectionValue}>}
+     * @returns {Array<{handle: unknown, bounds: {position: {x: number, y: number}, size: {width: number, height: number}}, splitDirection: import("./splitDirection.js").SplitDirectionValue, firstBounds: {position: {x: number, y: number}, size: {width: number, height: number}}, secondBounds: {position: {x: number, y: number}, size: {width: number, height: number}}}>}
      */
     collectResizeHandles(bounds) {
         throw new Error("Not implemented");

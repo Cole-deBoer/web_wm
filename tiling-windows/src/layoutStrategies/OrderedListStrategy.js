@@ -83,7 +83,7 @@ export class OrderedListStrategy extends LayoutStrategy {
      * GridStrategy) must override this - and resizeHandle - to disable
      * resizing rather than reporting misleading handles.
      * @param {{position: {x: number, y: number}, size: {width: number, height: number}}} bounds - The bounds of the structure
-     * @returns {Array<{handle: {firstId: number, secondId: number}, bounds: {position: {x: number, y: number}, size: {width: number, height: number}}, splitDirection: import("../splitDirection.js").SplitDirectionValue}>}
+     * @returns {Array<{handle: {firstId: number, secondId: number}, bounds: {position: {x: number, y: number}, size: {width: number, height: number}}, splitDirection: import("../splitDirection.js").SplitDirectionValue, firstBounds: {position: {x: number, y: number}, size: {width: number, height: number}}, secondBounds: {position: {x: number, y: number}, size: {width: number, height: number}}}>}
      */
     getResizeHandles(bounds) {
         if (this.windows.length < 2) return [];
@@ -109,6 +109,8 @@ export class OrderedListStrategy extends LayoutStrategy {
                     },
                 },
                 splitDirection: SplitDirection.Vertical,
+                firstBounds: columnBounds[i],
+                secondBounds: columnBounds[i + 1],
             });
         }
         return handles;
