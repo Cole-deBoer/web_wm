@@ -9,11 +9,34 @@ import { SplitDirection } from "tiling-windows";
 const EDGE_GRAB_THICKNESS = 8;
 
 /**
- * Overlays draggable edge-grab strips on a WindowManager's panes, wired
- * to getResizeHandles()/resizeHandle(). Wraps redrawWindows() - the
- * single choke point every layout mutation (add/remove/drag/native
- * resize) already runs through - so the overlay stays in sync with the
- * layout with no separate listeners to wire up at each call site.
+ * Floor on the live-preview size of the grabbed side, in px. Purely a
+ * visual sanity bound for the drag preview - the real clamp (MIN_RESIZE_RATIO)
+ * is enforced by resizeHandle() itself when the drag commits.
+ * @type {number}
+ */
+const MIN_PREVIEW_SIZE = 24;
+
+/**
+ * Overlays draggable edge-grab strips on a WindowManager's panes, wired to
+ * getResizeHandles()/resizeHandle(). firstBounds/secondBounds (the exact
+ * regions on either side of a divider, before each leaf's own margin
+ * inset) come straight from the layout engine, so the boundary math needs
+ * no DOM measurement - only finding which individual panes touch that
+ * boundary does. Subscribes via onRedraw - the supported way to know "the
+ * layout changed, re-sync your overlay" - so it stays in sync with every
+ * mutation (add/remove/drag/resize/native resize) with no separate
+ * listeners to wire up at each call site.
+ *
+ * resizeHandle() always defines both sides of a boundary from one ratio,
+ * so calling it on every pointermove would re-render every pane on both
+ * sides on every frame. To match komorebi (only the exact pane you grab
+ * tracks the cursor; every other pane - including ones that happen to
+ * share the same boundary line - sits still until release) each pane
+ * touching a boundary gets its own separate grab strip, sized to just
+ * that pane's own edge, and dragging one strip only ever restyles that
+ * one pane's rendered element directly - no layout-engine call happens
+ * until pointerup, when a single resizeHandle() commits the real ratio
+ * and the engine reflows both sides to their exact final bounds.
  * @param {import("tiling-windows").WindowManager} windowManager
  * @returns {() => void} render - re-syncs the divider overlay on demand
  */
@@ -26,21 +49,28 @@ export const setupResizeHandles = (windowManager) => {
         for (const el of handleElements) el.remove();
         handleElements.length = 0;
 
+        const workspaceOrigin = workspace.getBoundingClientRect();
+
         for (const {
             handle,
-            bounds,
             splitDirection,
+            firstBounds,
+            secondBounds,
         } of windowManager.getResizeHandles()) {
             const isVertical = splitDirection === SplitDirection.Vertical;
 
-            // There is no shared "divider" a user can select - each pane
-            // that touches this boundary gets its own grab strip, inset
-            // into that pane's own edge (mirrors komorebi: you drag a
-            // window's border, not an object living in the gap between
-            // windows). A boundary can touch more than one pane on a
-            // side (e.g. two stacked panes sharing one vertical divider),
-            // so this may add more than two strips per handle.
-            for (const pane of findAdjacentPanes(bounds, isVertical)) {
+            // There is no shared "divider" a user can select, and no
+            // single shared strip either - each individual pane touching
+            // this boundary gets its own grab strip sized to just that
+            // pane's own edge (mirrors komorebi: you drag one window's
+            // border, not a boundary shared by every pane that happens to
+            // touch it).
+            for (const pane of touchingPanes(
+                firstBounds,
+                secondBounds,
+                isVertical,
+                workspaceOrigin,
+            )) {
                 const el = document.createElement("div");
                 el.dataset.resizeHandle = "true";
                 el.className = `absolute z-40 ${
@@ -52,7 +82,14 @@ export const setupResizeHandles = (windowManager) => {
                 el.style.height = `${isVertical ? pane.crossEnd - pane.crossStart : EDGE_GRAB_THICKNESS}px`;
 
                 el.addEventListener("pointerdown", (event) =>
-                    beginResize(event, handle, isVertical, bounds),
+                    beginResize(
+                        event,
+                        handle,
+                        isVertical,
+                        pane,
+                        firstBounds,
+                        secondBounds,
+                    ),
                 );
 
                 workspace.appendChild(el);
@@ -62,195 +99,204 @@ export const setupResizeHandles = (windowManager) => {
     };
 
     /**
-     * The dragged pane (and anything nested inside its subtree) tracks
-     * the cursor in real time via a resizeHandle() call on every pointer
-     * move - resizeHandle() only changes one container's ratio, so any
-     * window outside that container's two subtrees recomputes to the
-     * exact bounds it already had. Nothing outside the drag visibly
-     * moves; it just isn't worth re-syncing the grab-strip overlay for
-     * every intermediate frame (isDraggingHandle skips that in the
-     * redrawWindows wrap below), so it's resynced once on release
-     * instead.
+     * The individual rendered panes whose own edge sits directly on this
+     * boundary, each with its own cross-axis extent (not the boundary's
+     * full extent) - a boundary can be touched by more than one pane on a
+     * side (e.g. a stack of windows sharing one vertical divider), and
+     * each gets a strip scoped to only its own edge so dragging it can
+     * never move a sibling that merely happens to share the same line.
+     * @param {{position: {x: number, y: number}, size: {width: number, height: number}}} firstBounds
+     * @param {{position: {x: number, y: number}, size: {width: number, height: number}}} secondBounds
+     * @param {boolean} isVertical
+     * @param {{left: number, top: number}} workspaceOrigin
+     * @returns {Array<{el: HTMLElement, isFirstSide: boolean, edgePosition: number, crossStart: number, crossEnd: number, axisPos: number, axisSize: number}>}
      */
-    const beginResize = (event, handle, isVertical, bounds) => {
-        event.preventDefault();
-        const span = measurePaneSpan(bounds, isVertical);
-        if (!span) return;
+    const touchingPanes = (
+        firstBounds,
+        secondBounds,
+        isVertical,
+        workspaceOrigin,
+    ) => {
+        const margin = isVertical
+            ? windowManager.windowMargin.horizontal
+            : windowManager.windowMargin.vertical;
+        // Each leaf window insets its own rendered edge by `margin` from
+        // the raw boundary between firstBounds/secondBounds - see
+        // Window.calculateLayout in tiling-windows/src/dataStructures.js.
+        const boundary = isVertical
+            ? secondBounds.position.x
+            : secondBounds.position.y;
+        const regionCrossStart = isVertical
+            ? firstBounds.position.y
+            : firstBounds.position.x;
+        const regionCrossEnd =
+            regionCrossStart +
+            (isVertical ? firstBounds.size.height : firstBounds.size.width);
+        const tolerance = 2;
 
-        const workspaceBounds = workspace.getBoundingClientRect();
+        const matches = [];
+        for (const child of workspace.children) {
+            if (child.dataset.resizeHandle) continue;
+
+            const rect = child.getBoundingClientRect();
+            const elLeft = rect.left - workspaceOrigin.left;
+            const elTop = rect.top - workspaceOrigin.top;
+            const elRight = elLeft + rect.width;
+            const elBottom = elTop + rect.height;
+            const crossMin = isVertical ? elTop : elLeft;
+            const crossMax = isVertical ? elBottom : elRight;
+
+            if (
+                crossMin < regionCrossStart - tolerance ||
+                crossMax > regionCrossEnd + tolerance
+            )
+                continue;
+
+            const trailingEdge = isVertical ? elRight : elBottom;
+            const leadingEdge = isVertical ? elLeft : elTop;
+            const axisPos = isVertical ? elLeft : elTop;
+            const axisSize = isVertical ? rect.width : rect.height;
+
+            if (Math.abs(trailingEdge - (boundary - margin)) <= tolerance) {
+                matches.push({
+                    el: child,
+                    isFirstSide: true,
+                    edgePosition: trailingEdge - EDGE_GRAB_THICKNESS,
+                    crossStart: crossMin,
+                    crossEnd: crossMax,
+                    axisPos,
+                    axisSize,
+                });
+            } else if (
+                Math.abs(leadingEdge - (boundary + margin)) <= tolerance
+            ) {
+                matches.push({
+                    el: child,
+                    isFirstSide: false,
+                    edgePosition: leadingEdge,
+                    crossStart: crossMin,
+                    crossEnd: crossMax,
+                    axisPos,
+                    axisSize,
+                });
+            }
+        }
+        return matches;
+    };
+
+    /**
+     * The exact pane grabbed tracks the cursor in real time by restyling
+     * its rendered element directly - anchored at the edge that doesn't
+     * move (the far edge of the pane's own side of the boundary), scaled
+     * along the resize axis only (cross-axis untouched). No other pane -
+     * not its neighbor, not a sibling that happens to share this same
+     * boundary line - is touched until pointerup, when a single
+     * resizeHandle() call commits the real ratio and the engine reflows
+     * both sides to their exact final bounds.
+     * @param {PointerEvent} event
+     * @param {unknown} handle
+     * @param {boolean} isVertical
+     * @param {{el: HTMLElement, isFirstSide: boolean, axisPos: number, axisSize: number}} pane - the grabbed pane
+     * @param {{position: {x: number, y: number}, size: {width: number, height: number}}} firstBounds
+     * @param {{position: {x: number, y: number}, size: {width: number, height: number}}} secondBounds
+     */
+    const beginResize = (
+        event,
+        handle,
+        isVertical,
+        pane,
+        firstBounds,
+        secondBounds,
+    ) => {
+        event.preventDefault();
+
+        const start = isVertical
+            ? firstBounds.position.x
+            : firstBounds.position.y;
+        const end = isVertical
+            ? secondBounds.position.x + secondBounds.size.width
+            : secondBounds.position.y + secondBounds.size.height;
+        if (end <= start) return;
+
+        const isFirstSide = pane.isFirstSide;
+        const grabbedBounds = isFirstSide ? firstBounds : secondBounds;
+        const oldRegionSize = isVertical
+            ? grabbedBounds.size.width
+            : grabbedBounds.size.height;
+        if (oldRegionSize <= 0) return;
+
+        // The edge that doesn't move: the grabbed side's far edge stays
+        // fixed while its near edge (the one touching the boundary) tracks
+        // the cursor.
+        const anchor = isFirstSide
+            ? start
+            : isVertical
+              ? secondBounds.position.x + secondBounds.size.width
+              : secondBounds.position.y + secondBounds.size.height;
+
+        const workspaceOrigin = workspace.getBoundingClientRect();
+        pane.el.classList.add("transition-none");
+
         const previousCursor = document.body.style.cursor;
         const previousUserSelect = document.body.style.userSelect;
         document.body.style.cursor = isVertical ? "col-resize" : "row-resize";
         document.body.style.userSelect = "none";
         isDraggingHandle = true;
 
-        const onPointerMove = (moveEvent) => {
-            const axisPosition = isVertical
-                ? moveEvent.clientX - workspaceBounds.left
-                : moveEvent.clientY - workspaceBounds.top;
+        const axisPositionOf = (pointerEvent) =>
+            isVertical
+                ? pointerEvent.clientX - workspaceOrigin.left
+                : pointerEvent.clientY - workspaceOrigin.top;
 
-            windowManager.resizeHandle(
-                handle,
-                (axisPosition - span.start) / (span.end - span.start),
+        const applyPreview = (axisPosition) => {
+            const rawSize = isFirstSide
+                ? axisPosition - anchor
+                : anchor - axisPosition;
+            const newRegionSize = Math.min(
+                Math.max(rawSize, MIN_PREVIEW_SIZE),
+                end - start - MIN_PREVIEW_SIZE,
             );
+            const scale = newRegionSize / oldRegionSize;
+
+            const newPos = anchor + (pane.axisPos - anchor) * scale;
+            const newSize = pane.axisSize * scale;
+            if (isVertical) {
+                pane.el.style.left = `${newPos}px`;
+                pane.el.style.width = `${newSize}px`;
+            } else {
+                pane.el.style.top = `${newPos}px`;
+                pane.el.style.height = `${newSize}px`;
+            }
         };
 
-        const onPointerUp = () => {
+        const onPointerMove = (moveEvent) => {
+            applyPreview(axisPositionOf(moveEvent));
+        };
+
+        const onPointerUp = (upEvent) => {
             window.removeEventListener("pointermove", onPointerMove);
             window.removeEventListener("pointerup", onPointerUp);
+
+            const ratio = (axisPositionOf(upEvent) - start) / (end - start);
+
+            // isDraggingHandle flips to false first so the onRedraw
+            // listener's own resync (triggered by this resizeHandle call)
+            // runs and rebuilds the overlay for the committed geometry.
+            isDraggingHandle = false;
+            windowManager.resizeHandle(handle, ratio);
+
+            pane.el.classList.remove("transition-none");
             document.body.style.cursor = previousCursor;
             document.body.style.userSelect = previousUserSelect;
-            isDraggingHandle = false;
-            render();
         };
 
         window.addEventListener("pointermove", onPointerMove);
         window.addEventListener("pointerup", onPointerUp);
     };
 
-    /**
-     * getResizeHandles() only reports a divider's thin hit-rect, not the
-     * panes on either side of it - so membership in "this boundary's
-     * pair" is derived from the panes' own rendered bounds instead. The
-     * divider's cross-axis extent is exact (it comes straight from the
-     * pane's layout bounds), so it's used to find every pane belonging
-     * to this boundary without needing access to the layout tree: any
-     * rendered pane whose cross-axis extent falls inside it is part of
-     * this container's subtree, and nothing else can coincidentally
-     * match since panes never overlap.
-     * @param {{position: {x: number, y: number}, size: {width: number, height: number}}} bounds
-     * @param {boolean} isVertical
-     * @returns {Array<{axisStart: number, axisEnd: number, crossStart: number, crossEnd: number}>}
-     */
-    const paneRectsInBoundary = (bounds, isVertical) => {
-        const workspaceBounds = workspace.getBoundingClientRect();
-        const crossStart = isVertical ? bounds.position.y : bounds.position.x;
-        const crossEnd =
-            crossStart + (isVertical ? bounds.size.height : bounds.size.width);
-        const tolerance = 2;
-
-        const rects = [];
-
-        for (const child of workspace.children) {
-            if (child.dataset.resizeHandle) continue;
-
-            const rect = child.getBoundingClientRect();
-            const left = rect.left - workspaceBounds.left;
-            const top = rect.top - workspaceBounds.top;
-            const axisStart = isVertical ? left : top;
-            const axisEnd = isVertical ? left + rect.width : top + rect.height;
-            const crossMin = isVertical ? top : left;
-            const crossMax = isVertical ? top + rect.height : left + rect.width;
-
-            if (
-                crossMin < crossStart - tolerance ||
-                crossMax > crossEnd + tolerance
-            )
-                continue;
-
-            rects.push({
-                axisStart,
-                axisEnd,
-                crossStart: crossMin,
-                crossEnd: crossMax,
-            });
-        }
-
-        return rects;
-    };
-
-    /**
-     * The pixel span (start/end along the resize axis) shared by the two
-     * panes on either side of a divider, used to convert a pointer
-     * position into a ratio.
-     * @param {{position: {x: number, y: number}, size: {width: number, height: number}}} bounds
-     * @param {boolean} isVertical
-     * @returns {{start: number, end: number} | null}
-     */
-    const measurePaneSpan = (bounds, isVertical) => {
-        const boundary = isVertical
-            ? bounds.position.x + bounds.size.width / 2
-            : bounds.position.y + bounds.size.height / 2;
-        const tolerance = 2;
-
-        let start = Infinity;
-        let end = -Infinity;
-
-        for (const pane of paneRectsInBoundary(bounds, isVertical)) {
-            if (pane.axisEnd <= boundary + tolerance) {
-                start = Math.min(start, pane.axisStart);
-            } else if (pane.axisStart >= boundary - tolerance) {
-                end = Math.max(end, pane.axisEnd);
-            }
-        }
-
-        if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start)
-            return null;
-
-        const margin = isVertical
-            ? windowManager.windowMargin.horizontal
-            : windowManager.windowMargin.vertical;
-
-        return { start: start - margin, end: end + margin };
-    };
-
-    /**
-     * The panes whose own edge sits directly on this boundary - each
-     * gets a grab strip inset into its own rect, never into the gap or
-     * the pane on the other side.
-     * @param {{position: {x: number, y: number}, size: {width: number, height: number}}} bounds
-     * @param {boolean} isVertical
-     * @returns {Array<{edgePosition: number, crossStart: number, crossEnd: number}>}
-     */
-    const findAdjacentPanes = (bounds, isVertical) => {
-        const boundary = isVertical
-            ? bounds.position.x + bounds.size.width / 2
-            : bounds.position.y + bounds.size.height / 2;
-        // A pane's rendered edge sits `margin` px short of the boundary,
-        // not on it - Window insets its own bounds by its margin on
-        // every side (see tiling-windows/src/dataStructures.js).
-        const margin = isVertical
-            ? windowManager.windowMargin.horizontal
-            : windowManager.windowMargin.vertical;
-        const tolerance = 2;
-
-        return paneRectsInBoundary(bounds, isVertical)
-            .map((pane) => {
-                if (Math.abs(pane.axisEnd - (boundary - margin)) <= tolerance) {
-                    return {
-                        edgePosition: pane.axisEnd - EDGE_GRAB_THICKNESS,
-                        crossStart: pane.crossStart,
-                        crossEnd: pane.crossEnd,
-                    };
-                }
-                if (
-                    Math.abs(pane.axisStart - (boundary + margin)) <= tolerance
-                ) {
-                    return {
-                        edgePosition: pane.axisStart,
-                        crossStart: pane.crossStart,
-                        crossEnd: pane.crossEnd,
-                    };
-                }
-                return null;
-            })
-            .filter(Boolean);
-    };
-
-    const originalRedraw = windowManager.redrawWindows.bind(windowManager);
-    windowManager.redrawWindows = () => {
-        originalRedraw();
-        if (!isDraggingHandle) {
-            render();
-            document.querySelectorAll(".window").forEach((window) => {
-                window.classList.remove("transition-none");
-            });
-        } else {
-            document.querySelectorAll(".window").forEach((window) => {
-                window.classList.add("transition-none");
-            });
-        }
-    };
+    windowManager.onRedraw(() => {
+        if (!isDraggingHandle) render();
+    });
 
     render();
     return render;
