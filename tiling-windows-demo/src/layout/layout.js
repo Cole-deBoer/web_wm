@@ -1,4 +1,4 @@
-import { WindowManager, BspStrategy, SplitDirection } from "tiling-windows";
+import { WindowManager, ColumnsStrategy, SplitDirection } from "tiling-windows";
 import { DomRenderer } from "tiling-windows-dom";
 import {
     createStatTile,
@@ -20,7 +20,7 @@ export const layout = () => {
     const windowManager = new WindowManager(
         workspaceElement,
         new DomRenderer(),
-        new BspStrategy(),
+        new ColumnsStrategy(),
     );
     const windowElements = new Map();
 
@@ -113,6 +113,7 @@ const createDashboardWindow = (
     splitDirection,
 ) => {
     element.classList.add("window");
+    element.id = windowManager.nextWindowId;
     windowManager.workspaceRef.appendChild(element);
     const window = windowManager.createWindow(element);
 

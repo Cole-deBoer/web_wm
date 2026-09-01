@@ -219,20 +219,18 @@ export const setupResizeHandles = (windowManager) => {
         if (end <= start) return;
 
         const isFirstSide = pane.isFirstSide;
-        const grabbedBounds = isFirstSide ? firstBounds : secondBounds;
-        const oldRegionSize = isVertical
-            ? grabbedBounds.size.width
-            : grabbedBounds.size.height;
-        if (oldRegionSize <= 0) return;
 
-        // The edge that doesn't move: the grabbed side's far edge stays
-        // fixed while its near edge (the one touching the boundary) tracks
-        // the cursor.
-        const anchor = isFirstSide
-            ? start
-            : isVertical
-              ? secondBounds.position.x + secondBounds.size.width
-              : secondBounds.position.y + secondBounds.size.height;
+        // The pane's own far edge - the one NOT touching this boundary -
+        // never moves, regardless of how deeply this pane is nested inside
+        // the grabbed side. Anchoring to the whole region's far edge (as a
+        // scaled-subtree preview would) is wrong here: if the grabbed side
+        // has further same-axis nested splits, the touching pane's own far
+        // edge sits somewhere inside that region, not at its boundary, so
+        // scaling relative to the region dragged that inner edge too. Only
+        // the pane's near edge (touching the boundary) tracks the cursor.
+        const farEdge = isFirstSide
+            ? pane.axisPos
+            : pane.axisPos + pane.axisSize;
 
         const workspaceOrigin = workspace.getBoundingClientRect();
         pane.el.classList.add("transition-none");
@@ -249,17 +247,18 @@ export const setupResizeHandles = (windowManager) => {
                 : pointerEvent.clientY - workspaceOrigin.top;
 
         const applyPreview = (axisPosition) => {
-            const rawSize = isFirstSide
-                ? axisPosition - anchor
-                : anchor - axisPosition;
-            const newRegionSize = Math.min(
-                Math.max(rawSize, MIN_PREVIEW_SIZE),
-                end - start - MIN_PREVIEW_SIZE,
-            );
-            const scale = newRegionSize / oldRegionSize;
+            const clamped = isFirstSide
+                ? Math.min(
+                      Math.max(axisPosition, farEdge + MIN_PREVIEW_SIZE),
+                      end - MIN_PREVIEW_SIZE,
+                  )
+                : Math.max(
+                      Math.min(axisPosition, farEdge - MIN_PREVIEW_SIZE),
+                      start + MIN_PREVIEW_SIZE,
+                  );
 
-            const newPos = anchor + (pane.axisPos - anchor) * scale;
-            const newSize = pane.axisSize * scale;
+            const newPos = isFirstSide ? farEdge : clamped;
+            const newSize = isFirstSide ? clamped - farEdge : farEdge - clamped;
             if (isVertical) {
                 pane.el.style.left = `${newPos}px`;
                 pane.el.style.width = `${newSize}px`;
@@ -270,6 +269,10 @@ export const setupResizeHandles = (windowManager) => {
         };
 
         const onPointerMove = (moveEvent) => {
+            if (windowManager.activeWindowId !== parseInt(pane.el.id)) {
+                windowManager.activeWindowId = parseInt(pane.el.id);
+            }
+            pane.el.classList.add("z-50");
             applyPreview(axisPositionOf(moveEvent));
         };
 
@@ -286,6 +289,7 @@ export const setupResizeHandles = (windowManager) => {
             windowManager.resizeHandle(handle, ratio);
 
             pane.el.classList.remove("transition-none");
+            pane.el.classList.remove("z-50");
             document.body.style.cursor = previousCursor;
             document.body.style.userSelect = previousUserSelect;
         };
